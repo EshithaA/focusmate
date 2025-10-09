@@ -1,6 +1,6 @@
 # FocusMate - Pomodoro Study App
 
-A comprehensive Pomodoro timer app with gamification, leaderboards, and customizable themes designed for students to stay focused and motivated.
+A comprehensive Pomodoro timer app with gamification, leaderboards, and customizable themes designed for students to stay focused and motivated
 
 ## Features
 
