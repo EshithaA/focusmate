@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FocusMate - Leaderboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-level {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        .back-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .back-btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .leaderboard-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-bottom: 30px;
+        }
+
+        .leaderboard-title {
+            font-size: 2rem;
+            margin-bottom: 25px;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .leaderboard-list {
+            list-style: none;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            padding: 20px;
+            margin-bottom: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .leaderboard-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .leaderboard-item.current-user {
+            background: rgba(46, 204, 113, 0.2);
+            border: 2px solid #2ecc71;
+        }
+
+        .rank {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-right: 20px;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .rank.first {
+            color: #f1c40f;
+        }
+
+        .rank.second {
+            color: #95a5a6;
+        }
+
+        .rank.third {
+            color: #e67e22;
+        }
+
+        .user-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-right: 20px;
+        }
+
+        .user-details {
+            flex: 1;
+        }
+
+        .username {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .user-rank {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .user-stats {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.2rem;
+        }
+
+        .loading i {
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            opacity: 0.7;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+
+        .refresh-btn {
+            background: #2ecc71;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .refresh-btn:hover {
+            background: #27ae60;
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .leaderboard-item {
+                flex-direction: column;
+                text-align: center;
+                gap: 15px;
+            }
+
+            .user-stats {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><i class="fas fa-trophy"></i> Leaderboard</h1>
+        <div class="user-info">
+            <div class="user-level" id="userLevel">
+                <i class="fas fa-star"></i> <span id="userRank">Loading...</span>
+            </div>
+            <button class="back-btn" id="backBtn">
+                <i class="fas fa-arrow-left"></i> Dashboard
+            </button>
+        </div>
+    </div>
+
+    <div class="leaderboard-container">
+        <div class="leaderboard-title">
+            <i class="fas fa-crown"></i> Top Focus Masters
+        </div>
+        
+        <button class="refresh-btn" id="refreshBtn">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+
+        <div class="loading" id="loading">
+            <i class="fas fa-spinner"></i> Loading leaderboard...
+        </div>
+
+        <div class="empty-state" id="emptyState" style="display: none;">
+            <i class="fas fa-users"></i>
+            <h3>No users yet</h3>
+            <p>Be the first to start studying and climb the leaderboard!</p>
+        </div>
+
+        <ul class="leaderboard-list" id="leaderboardList"></ul>
+    </div>
+
+    <script type="module">
+        import { auth, getUserData, getLeaderboard, subscribeToLeaderboard, onAuthStateChange } from './firebase-config-demo.js';
+
+        // DOM Elements
+        const userRank = document.getElementById('userRank');
+        const backBtn = document.getElementById('backBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const loading = document.getElementById('loading');
+        const emptyState = document.getElementById('emptyState');
+        const leaderboardList = document.getElementById('leaderboardList');
+
+        let currentUser = null;
+        let userData = null;
+        let unsubscribeLeaderboard = null;
+
+        // Initialize leaderboard
+        onAuthStateChange(async (user) => {
+            if (user) {
+                currentUser = user;
+                await loadUserData();
+                loadLeaderboard();
+            } else {
+                window.location.href = 'login.html';
+            }
+        });
+
+        // Load user data
+        async function loadUserData() {
+            if (!currentUser) return;
+
+            const result = await getUserData(currentUser.uid);
+            if (result.success) {
+                userData = result.data;
+                userRank.textContent = `${userData.rank} (Level ${userData.level})`;
+            }
+        }
+
+        // Load leaderboard
+        function loadLeaderboard() {
+            showLoading(true);
+            
+            // Subscribe to real-time updates
+            unsubscribeLeaderboard = subscribeToLeaderboard((leaderboard) => {
+                displayLeaderboard(leaderboard);
+                showLoading(false);
+            }, 20);
+        }
+
+        // Display leaderboard
+        function displayLeaderboard(leaderboard) {
+            if (leaderboard.length === 0) {
+                emptyState.style.display = 'block';
+                leaderboardList.style.display = 'none';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            leaderboardList.style.display = 'block';
+            leaderboardList.innerHTML = '';
+
+            leaderboard.forEach((user, index) => {
+                const rank = index + 1;
+                const isCurrentUser = user.id === currentUser.uid;
+                
+                const listItem = document.createElement('li');
+                listItem.className = `leaderboard-item ${isCurrentUser ? 'current-user' : ''}`;
+                
+                const rankClass = rank === 1 ? 'first' : rank === 2 ? 'second' : rank === 3 ? 'third' : '';
+                
+                listItem.innerHTML = `
+                    <div class="rank ${rankClass}">#${rank}</div>
+                    <div class="user-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="user-details">
+                        <div class="username">${user.username}</div>
+                        <div class="user-rank">${user.rank} (Level ${user.level})</div>
+                    </div>
+                    <div class="user-stats">
+                        <div class="stat-item">
+                            <div class="stat-value">${user.xp || 0}</div>
+                            <div class="stat-label">Focus Points</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${user.studySessions || 0}</div>
+                            <div class="stat-label">Sessions</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${user.currentStreak || 0}</div>
+                            <div class="stat-label">Streak</div>
+                        </div>
+                    </div>
+                `;
+                
+                leaderboardList.appendChild(listItem);
+            });
+        }
+
+        // Utility functions
+        function showLoading(show) {
+            loading.style.display = show ? 'block' : 'none';
+        }
+
+        // Event listeners
+        backBtn.addEventListener('click', () => {
+            window.location.href = 'dashboard.html';
+        });
+
+        refreshBtn.addEventListener('click', () => {
+            if (unsubscribeLeaderboard) {
+                unsubscribeLeaderboard();
+            }
+            loadLeaderboard();
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (unsubscribeLeaderboard) {
+                unsubscribeLeaderboard();
+            }
+        });
+    </script>
+</body>
+</html>
