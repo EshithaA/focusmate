@@ -950,7 +950,7 @@
                     .toString()
                     .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 
-                document.title = ${this.isStudyMode ? 'Study' : 'Break'} (${this.timerDisplay.textContent}) - FocusFlow;
+                document.title = `${this.isStudyMode ? 'Study' : 'Break'} (${this.timerDisplay ? this.timerDisplay.textContent : ''}) - FocusFlow`;
 
                 if (this.isStudyMode) {
                     this.modeDisplay.textContent = "Study Time";
@@ -960,7 +960,7 @@
                     this.modeDisplay.className = "mode-display break-mode";
                 }
 
-                this.progressFill.style.width = ${progress}%;
+                if (this.progressFill) this.progressFill.style.width = `${progress}%`;
             }
 
             updateStats() {
@@ -973,8 +973,8 @@
                 
                 this.studyCountElement.textContent = this.studyCount;
                 this.breakCountElement.textContent = this.breakCount;
-                this.totalTimeElement.textContent = ${this.totalTimeSpent} min;
-                this.productivityElement.textContent = ${productivity}%;
+                if (this.totalTimeElement) this.totalTimeElement.textContent = `${this.totalTimeSpent} min`;
+                if (this.productivityElement) this.productivityElement.textContent = `${productivity}%`;
             }
 
             playNotification() {
