@@ -1,3 +1,11 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FocusMate - Pomodoro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script type="module">
         // Dynamically load firebase (real or demo) and then initialize the Pomodoro timer with extra features (to-dos, idle detection)
         (async () => {
@@ -183,6 +191,13 @@
 
                 updateSettings(force=false){ if(!force && (this.isRunning||this.isPaused)) return; let studyMinutes = parseInt(this.studyInput.value)||25; let breakMinutes = parseInt(this.breakInput.value)||5; let cap=false; const maxAllowedBreak = Math.max(1,studyMinutes-1); if(breakMinutes>=studyMinutes){ cap=true; breakMinutes=maxAllowedBreak; if(this.breakInput) this.breakInput.value=breakMinutes; } if(cap){ if(this.cappedBreakTimeDisplay) this.cappedBreakTimeDisplay.textContent=breakMinutes; this.showBreakCapNotification(); } else this.closeBreakCapNotification(); if(this.isStudyMode){ this.totalTime = studyMinutes*60; if(force||!this.isRunning) this.timeLeft = studyMinutes*60; } else { this.totalTime = breakMinutes*60; if(force||!this.isRunning) this.timeLeft = breakMinutes*60; } if(force||!this.isRunning) this.updateDisplay(); }
 
+                // Ensure settings inputs are enabled/disabled during runs
+                toggleSettings(enable){
+                    const disabled = !enable;
+                    if (this.studyInput) this.studyInput.disabled = disabled;
+                    if (this.breakInput) this.breakInput.disabled = disabled;
+                }
+
                 updateDisplay(){ const minutes=Math.floor(this.timeLeft/60); const seconds=this.timeLeft%60; const progress = this.totalTime>0?Math.max(0,Math.min(100,100-(this.timeLeft/this.totalTime)*100)):0; if(this.timerDisplay) this.timerDisplay.textContent=`${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`; document.title = `${this.isStudyMode? 'Study':'Break'} (${this.timerDisplay?this.timerDisplay.textContent:''}) - FocusFlow`; if(this.isStudyMode){ if(this.modeDisplay){ this.modeDisplay.textContent='Study Time'; this.modeDisplay.className='mode-display study-mode'; } } else { if(this.modeDisplay){ this.modeDisplay.textContent='Break Time'; this.modeDisplay.className='mode-display break-mode'; } } if(this.progressFill) this.progressFill.style.width = `${progress}%`; }
 
                 updateStats(){ this.totalTimeSpent = this.studyCount + this.breakCount; const totalSessions = this.studyCount + this.breakCount; const productivity = totalSessions>0?Math.round((this.studyCount/totalSessions)*100):0; if(this.studyCountElement) this.studyCountElement.textContent=this.studyCount; if(this.breakCountElement) this.breakCountElement.textContent=this.breakCount; if(this.totalTimeElement) this.totalTimeElement.textContent=`${this.totalTimeSpent} min`; if(this.productivityElement) this.productivityElement.textContent=`${productivity}%`; }
@@ -205,8 +220,8 @@
             document.addEventListener('keypress', function(e){ if(e.key==='Enter') e.preventDefault(); });
         })();
     </script>
-        }
 
+    <style>
         /* Stats Section */
         .stats {
             margin-top: 30px;
@@ -364,17 +379,17 @@
     </style>
 </head>
 <body style="font-family: 'Space Grotesk', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: radial-gradient(circle at 20% 20%, #0b0f2a 0%, rgba(11,15,42,0.9) 25%, rgba(6,8,24,0.95) 60%, #040615 100%), radial-gradient(circle at 80% 10%, rgba(79,70,229,0.15), rgba(0,0,0,0) 40%), radial-gradient(circle at 10% 90%, rgba(16,185,129,0.12), rgba(0,0,0,0) 40%), radial-gradient(circle at 85% 80%, rgba(59,130,246,0.12), rgba(0,0,0,0) 40%); color: #e6e9ef;">
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <div class="container">
-        <h1><i class="fas fa-clock"></i> FocusMate</h1>
-        
-        <div class="user-info">
+        <div class="topbar" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+            <h1><i class="fas fa-clock"></i> FLOW STATE</h1>
+            <div class="user-info" style="margin-left:auto;">
             <div class="user-level" id="userLevel">
                 <i class="fas fa-star"></i> <span id="userRank">Loading...</span>
             </div>
             <button class="back-btn" id="backBtn">
                 <i class="fas fa-arrow-left"></i> Dashboard
             </button>
+            </div>
         </div>
 
         <div class="mode-display study-mode" id="modeDisplay">Study Time</div>
@@ -397,7 +412,7 @@
             </button>
         </div>
 
-        <div class="settings">
+        <div class="settings" style="max-width:680px;margin:24px auto;text-align:center">
             <h3><i class="fas fa-cog"></i> Customize Your Timer</h3>
 
             <div class="input-group">
