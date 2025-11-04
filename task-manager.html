@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FocusMate - Task Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Space Grotesk', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at 20% 20%, #0b0f2a 0%, rgba(11,15,42,0.9) 25%, rgba(6,8,24,0.95) 60%, #040615 100%),
+                        radial-gradient(circle at 80% 10%, rgba(79,70,229,0.15), rgba(0,0,0,0) 40%),
+                        radial-gradient(circle at 10% 90%, rgba(16,185,129,0.12), rgba(0,0,0,0) 40%),
+                        radial-gradient(circle at 85% 80%, rgba(59,130,246,0.12), rgba(0,0,0,0) 40%);
+            color: #e6e9ef; padding: 20px; min-height: 100vh;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+        .header h1 { display:flex; gap:10px; align-items:center; font-size:1.8rem }
+        .back-btn { background: rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); padding:10px 14px; border-radius:10px; color:#e6e9ef; cursor:pointer }
+
+        .grid { display:grid; grid-template-columns: 1.2fr 1fr; gap:20px }
+        .card { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); border-radius:16px; padding:18px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); }
+        .card h2 { font-size:1.2rem; margin-bottom:12px; display:flex; gap:8px; align-items:center }
+
+        /* AI Planner */
+        .planner-form { display:grid; gap:10px }
+        .row { display:flex; gap:10px }
+        .row > * { flex:1 }
+        input, select, textarea { background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:inherit; padding:10px; border-radius:10px }
+        textarea { resize: vertical; min-height: 80px }
+        .btn { background:#2ecc71; color:#012; border:none; padding:10px 14px; border-radius:10px; cursor:pointer }
+        .btn.secondary { background: rgba(255,255,255,0.08); color:#e6e9ef }
+        .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px }
+        .chip { background: rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); padding:6px 10px; border-radius:999px; font-size:0.85rem }
+
+        /* Task list */
+        .tasks { display:flex; flex-direction:column; gap:10px; max-height:340px; overflow:auto }
+        .task { display:flex; gap:10px; align-items:center; justify-content:space-between; padding:10px; border-radius:12px; background: rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.06) }
+        .task-left { display:flex; align-items:center; gap:10px; }
+        .task-title { font-weight:600 }
+        .task-meta { opacity:0.8; font-size:0.85rem }
+        .icon-btn { background:transparent; border:none; color:#e6e9ef; cursor:pointer }
+
+        /* Scheduler */
+        .scheduler { display:grid; grid-template-columns: 1fr 1fr; gap:12px; align-items:center }
+        .timer { text-align:center; padding:14px; border-radius:12px; background: rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08) }
+        .clock { font-size:2.2rem; font-weight:800; letter-spacing:1px }
+        .current-task { margin-top:6px; opacity:0.9 }
+        .controls { display:flex; gap:10px; flex-wrap:wrap; }
+        .queue { max-height:140px; overflow:auto; border-radius:10px; border:1px solid rgba(255,255,255,0.08); padding:8px; background: rgba(255,255,255,0.03) }
+        .queue-item { padding:6px 8px; border-radius:8px; margin-bottom:6px; display:flex; justify-content:space-between; background: rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.05) }
+
+        @media (max-width: 900px) {
+            .grid { grid-template-columns: 1fr; }
+            .scheduler { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-list-check"></i> Task Manager</h1>
+            <div style="display:flex; gap:10px; align-items:center">
+                <button class="back-btn" onclick="window.location.href='index.html'"><i class="fas fa-home"></i> Home</button>
+                <button class="back-btn" onclick="window.location.href='dashboard.html'"><i class="fas fa-gauge"></i> Dashboard</button>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h2><i class="fas fa-robot"></i> AI Study Planner <span style="opacity:0.8;font-weight:500">(Assistant)</span></h2>
+                <div style="opacity:0.85; font-size:0.92rem; margin-bottom:10px">Tell the assistant your subjects, hours, and priorities. It will slice your day into focused slots and add them as tasks ready for the scheduler.</div>
+                <div class="planner-form">
+                    <div class="row">
+                        <input id="subjectsInput" type="text" placeholder="Subjects (comma separated, e.g., Math, Physics)">
+                        <input id="availableHoursInput" type="number" min="1" placeholder="Available hours today">
+                    </div>
+                    <div class="row">
+                        <input id="deadlineInput" type="date" placeholder="Next exam deadline (optional)">
+                        <select id="priorityStrategy">
+                            <option value="deadline">Prioritize earlier deadlines</option>
+                            <option value="difficulty">Prioritize higher difficulty</option>
+                            <option value="balanced" selected>Balanced spread</option>
+                        </select>
+                    </div>
+                    <textarea id="notesInput" placeholder="Optional: Topics, weak areas, or constraints (e.g., no study after 9pm)"></textarea>
+                    <div class="row">
+                        <button id="generatePlanBtn" class="btn"><i class="fas fa-wand-magic-sparkles"></i> Ask AI to Plan</button>
+                        <button id="clearPlanBtn" class="btn secondary">Clear</button>
+                    </div>
+                    <div id="planChips" class="chips"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2><i class="fas fa-stopwatch"></i> Round-Robin Scheduler</h2>
+                <div class="scheduler">
+                    <div class="timer">
+                        <div class="clock" id="clock">00:00</div>
+                        <div class="current-task" id="currentTask">No task selected</div>
+                    </div>
+                    <div>
+                        <div class="row">
+                            <input id="quantumInput" type="number" min="5" step="5" value="25" placeholder="Time quantum (min)">
+                            <input id="defaultDurationInput" type="number" min="10" step="5" value="50" placeholder="Default task duration (min)">
+                        </div>
+                        <div class="controls" style="margin-top:10px">
+                            <button id="startBtn" class="btn"><i class="fas fa-play"></i> Start</button>
+                            <button id="pauseBtn" class="btn secondary"><i class="fas fa-pause"></i> Pause</button>
+                            <button id="nextBtn" class="btn secondary"><i class="fas fa-forward"></i> Next Task</button>
+                            <button id="resetBtn" class="btn secondary"><i class="fas fa-rotate"></i> Reset</button>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top:12px">
+                    <div style="font-weight:600; margin-bottom:6px">Ready Queue</div>
+                    <div id="readyQueue" class="queue"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top:20px">
+            <h2><i class="fas fa-tasks"></i> Tasks</h2>
+            <div class="row" style="margin-bottom:10px">
+                <input id="taskTitleInput" type="text" placeholder="Task title (e.g., Math: Chapter 3 practice)">
+                <input id="taskDurationInput" type="number" min="10" step="5" placeholder="Duration (min)">
+                <select id="taskDifficulty">
+                    <option value="1">Easy</option>
+                    <option value="2">Medium</option>
+                    <option value="3">Hard</option>
+                </select>
+                <button id="addTaskBtn" class="btn"><i class="fas fa-plus"></i> Add</button>
+                <button id="clearAllTasksBtn" class="btn secondary"><i class="fas fa-trash"></i> Clear All</button>
+            </div>
+            <div id="tasks" class="tasks"></div>
+        </div>
+    </div>
+
+    <audio id="beepAudio" preload="auto">
+        <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSQAAAAA" type="audio/wav">
+    </audio>
+
+    <script>
+        // Persistence keys
+        const STORAGE_KEYS = {
+            tasks: 'fm_tasks',
+            scheduler: 'fm_scheduler',
+            theme: 'focusmateTheme'
+        };
+
+        // State
+        let tasks = []; // {id, title, durationMin, remainingMs, difficulty}
+        let readyQueue = []; // array of task ids in order
+        let currentTaskId = null;
+        let quantumMs = 25 * 60 * 1000;
+        let timerInterval = null;
+        let sliceRemainingMs = 0;
+        let isRunning = false;
+
+        // DOM
+        const tasksEl = document.getElementById('tasks');
+        const readyQueueEl = document.getElementById('readyQueue');
+        const clockEl = document.getElementById('clock');
+        const currentTaskEl = document.getElementById('currentTask');
+        const quantumInput = document.getElementById('quantumInput');
+        const defaultDurationInput = document.getElementById('defaultDurationInput');
+        const addTaskBtn = document.getElementById('addTaskBtn');
+        const clearAllTasksBtn = document.getElementById('clearAllTasksBtn');
+        const taskTitleInput = document.getElementById('taskTitleInput');
+        const taskDurationInput = document.getElementById('taskDurationInput');
+        const taskDifficulty = document.getElementById('taskDifficulty');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const subjectsInput = document.getElementById('subjectsInput');
+        const availableHoursInput = document.getElementById('availableHoursInput');
+        const deadlineInput = document.getElementById('deadlineInput');
+        const priorityStrategy = document.getElementById('priorityStrategy');
+        const notesInput = document.getElementById('notesInput');
+        const generatePlanBtn = document.getElementById('generatePlanBtn');
+        const clearPlanBtn = document.getElementById('clearPlanBtn');
+        const planChips = document.getElementById('planChips');
+        const beepAudio = document.getElementById('beepAudio');
+
+        function applyThemeFromStorage() {
+            const saved = localStorage.getItem(STORAGE_KEYS.theme);
+            if (saved === 'futuristic') {
+                document.body.style.background = 'radial-gradient(circle at 10% 20%, #0f0c29 0%, #302b63 40%, #24243e 100%)';
+            }
+        }
+
+        // Helpers
+        function save() {
+            localStorage.setItem(STORAGE_KEYS.tasks, JSON.stringify(tasks));
+            localStorage.setItem(STORAGE_KEYS.scheduler, JSON.stringify({ readyQueue, currentTaskId, quantumMs }));
+        }
+        function load() {
+            try { tasks = JSON.parse(localStorage.getItem(STORAGE_KEYS.tasks) || '[]'); } catch(e) { tasks = []; }
+            try {
+                const s = JSON.parse(localStorage.getItem(STORAGE_KEYS.scheduler) || '{}');
+                readyQueue = Array.isArray(s.readyQueue) ? s.readyQueue : [];
+                currentTaskId = s.currentTaskId || null;
+                quantumMs = typeof s.quantumMs === 'number' ? s.quantumMs : quantumMs;
+            } catch(e) {}
+        }
+        function minutesToClock(ms) {
+            const totalSec = Math.max(0, Math.floor(ms / 1000));
+            const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
+            const s = (totalSec % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+        function render() {
+            // tasks list
+            tasksEl.innerHTML = '';
+            tasks.forEach(t => {
+                const row = document.createElement('div');
+                row.className = 'task';
+                const left = document.createElement('div');
+                left.className = 'task-left';
+                const title = document.createElement('div');
+                title.className = 'task-title';
+                title.textContent = t.title;
+                const meta = document.createElement('div');
+                meta.className = 'task-meta';
+                const remainingMin = Math.ceil((t.remainingMs || t.durationMin * 60000) / 60000);
+                meta.textContent = `${remainingMin} min • ${['Easy','Medium','Hard'][Math.max(0,t.difficulty-1)]}`;
+                left.appendChild(title);
+                left.appendChild(meta);
+                const right = document.createElement('div');
+                const editBtn = document.createElement('button'); editBtn.className = 'icon-btn'; editBtn.title = 'Edit'; editBtn.innerHTML = '<i class="fas fa-pen"></i>';
+                editBtn.addEventListener('click', () => editTask(t.id));
+                const delBtn = document.createElement('button'); delBtn.className = 'icon-btn'; delBtn.title = 'Delete'; delBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                delBtn.addEventListener('click', () => deleteTask(t.id));
+                const enqueueBtn = document.createElement('button'); enqueueBtn.className = 'icon-btn'; enqueueBtn.title = 'Add to queue'; enqueueBtn.innerHTML = '<i class="fas fa-plus"></i>';
+                enqueueBtn.addEventListener('click', () => enqueueTask(t.id));
+                right.appendChild(enqueueBtn); right.appendChild(editBtn); right.appendChild(delBtn);
+                row.appendChild(left); row.appendChild(right);
+                tasksEl.appendChild(row);
+            });
+
+            // queue
+            readyQueueEl.innerHTML = '';
+            readyQueue.forEach((id, idx) => {
+                const t = tasks.find(x => x.id === id);
+                if (!t) return;
+                const qi = document.createElement('div');
+                qi.className = 'queue-item';
+                qi.innerHTML = `<div>${idx===0?'<i class=\'fas fa-circle-play\'></i> ':''}${t.title}</div><div>${Math.ceil((t.remainingMs||t.durationMin*60000)/60000)} min</div>`;
+                readyQueueEl.appendChild(qi);
+            });
+
+            // scheduler view
+            quantumInput.value = Math.round(quantumMs / 60000);
+            const ct = tasks.find(x => x.id === currentTaskId);
+            currentTaskEl.textContent = ct ? `Current: ${ct.title}` : 'No task selected';
+        }
+
+        function addTask(title, durationMin, difficulty) {
+            if (!title || !durationMin) return;
+            const id = Date.now() + Math.random().toString(36).slice(2);
+            tasks.push({ id, title, durationMin: Number(durationMin), remainingMs: Number(durationMin) * 60000, difficulty: Number(difficulty || 2) });
+            save(); render();
+        }
+        function editTask(id) {
+            const t = tasks.find(x => x.id === id); if (!t) return;
+            const nt = prompt('Edit title', t.title); if (nt === null) return;
+            const nd = parseInt(prompt('Edit duration (min)', Math.ceil((t.remainingMs||t.durationMin*60000)/60000)), 10);
+            if (!nt || !nd) return;
+            t.title = nt; t.durationMin = nd; t.remainingMs = nd * 60000; save(); render();
+        }
+        function deleteTask(id) {
+            tasks = tasks.filter(x => x.id !== id);
+            readyQueue = readyQueue.filter(x => x !== id);
+            if (currentTaskId === id) { currentTaskId = null; }
+            save(); render();
+        }
+        function clearAllTasks() {
+            pause();
+            tasks = [];
+            readyQueue = [];
+            currentTaskId = null;
+            sliceRemainingMs = 0;
+            save();
+            render();
+            clockEl.textContent = '00:00';
+        }
+        function enqueueTask(id) {
+            if (!readyQueue.includes(id)) readyQueue.push(id);
+            if (!currentTaskId) currentTaskId = id;
+            save(); render();
+        }
+
+        // Scheduler controls
+        function tick() {
+            const nowTask = tasks.find(x => x.id === currentTaskId);
+            if (!nowTask) { pause(); return; }
+            sliceRemainingMs -= 1000;
+            nowTask.remainingMs = Math.max(0, (nowTask.remainingMs || nowTask.durationMin * 60000) - 1000);
+            clockEl.textContent = minutesToClock(sliceRemainingMs);
+            if (sliceRemainingMs <= 0 || nowTask.remainingMs <= 0) {
+                try { beepAudio.currentTime = 0; beepAudio.play(); } catch(e) {}
+                // move to end or remove if finished
+                const idx = readyQueue.indexOf(currentTaskId);
+                if (nowTask.remainingMs <= 0) {
+                    if (idx !== -1) readyQueue.splice(idx, 1);
+                } else {
+                    if (idx !== -1) { readyQueue.splice(idx, 1); readyQueue.push(nowTask.id); }
+                }
+                // pick next
+                currentTaskId = readyQueue[0] || null;
+                sliceRemainingMs = quantumMs;
+                if (!currentTaskId) { pause(); clockEl.textContent = '00:00'; }
+                save(); render();
+            }
+        }
+        function start() {
+            if (isRunning) return;
+            if (!currentTaskId && readyQueue.length > 0) currentTaskId = readyQueue[0];
+            if (!currentTaskId) return;
+            isRunning = true;
+            if (!sliceRemainingMs || sliceRemainingMs <= 0) sliceRemainingMs = quantumMs;
+            clockEl.textContent = minutesToClock(sliceRemainingMs);
+            timerInterval = setInterval(tick, 1000);
+        }
+        function pause() { isRunning = false; if (timerInterval) clearInterval(timerInterval); timerInterval = null; save(); }
+        function next() { if (!currentTaskId) return; sliceRemainingMs = 0; tick(); }
+        function reset() {
+            pause();
+            tasks.forEach(t => { t.remainingMs = t.durationMin * 60000; });
+            sliceRemainingMs = 0; currentTaskId = readyQueue[0] || null; clockEl.textContent = '00:00';
+            save(); render();
+        }
+
+        // AI-ish plan generation (deterministic heuristic)
+        function generatePlan() {
+            const subjects = (subjectsInput.value || '').split(',').map(s => s.trim()).filter(Boolean);
+            const hours = Math.max(1, Number(availableHoursInput.value || 0));
+            const deadline = deadlineInput.value ? new Date(deadlineInput.value) : null;
+            const strategy = priorityStrategy.value;
+            const notes = (notesInput.value || '').toLowerCase();
+            if (subjects.length === 0) { alert('Enter at least one subject'); return; }
+
+            // compute slots (default quantum)
+            const quantumMin = Math.max(5, Number(quantumInput.value || 25));
+            const totalSlots = Math.max(1, Math.floor((hours * 60) / quantumMin));
+
+            // difficulty estimator from notes
+            const diffMap = {};
+            subjects.forEach(s => { diffMap[s] = 2; });
+            ['hard','difficult','weak','struggle','confusing'].forEach(k => {
+                subjects.forEach(s => { if (notes.includes(`${s.toLowerCase()}`) && notes.includes(k)) diffMap[s] = 3; });
+            });
+
+            // deadline urgency weighting
+            let urgency = {};
+            subjects.forEach(s => urgency[s] = 1);
+            if (deadline) {
+                const days = Math.max(1, Math.ceil((deadline.getTime() - Date.now()) / (1000*60*60*24)));
+                subjects.forEach(s => { urgency[s] = Math.min(3, Math.ceil(7 / days)); });
+            }
+
+            // distribute slots
+            const plan = [];
+            for (let i = 0; i < totalSlots; i++) {
+                let pick = 0;
+                if (strategy === 'difficulty') pick = i % subjects.length;
+                if (strategy === 'deadline') pick = (i * 2) % subjects.length;
+                if (strategy === 'balanced') pick = (i + (i%2)) % subjects.length;
+                // weight by urgency and difficulty subtly
+                const ordered = [...subjects].sort((a,b) => (urgency[b]-urgency[a]) || (diffMap[b]-diffMap[a]));
+                const subject = ordered[pick % ordered.length];
+                plan.push({ subject, minutes: quantumMin, difficulty: diffMap[subject] });
+            }
+
+            // render chips and push to tasks list
+            planChips.innerHTML = '';
+            plan.forEach((p, idx) => {
+                const c = document.createElement('div');
+                c.className = 'chip';
+                c.textContent = `Slot ${idx+1}: ${p.subject} • ${p.minutes} min`;
+                planChips.appendChild(c);
+                addTask(`${p.subject} - Slot ${idx+1}`, p.minutes, p.difficulty);
+            });
+        }
+
+        // Events
+        addTaskBtn.addEventListener('click', () => {
+            const title = taskTitleInput.value.trim();
+            const duration = Number(taskDurationInput.value || defaultDurationInput.value || 50);
+            const diff = Number(taskDifficulty.value || 2);
+            addTask(title, duration, diff);
+            taskTitleInput.value = '';
+            taskDurationInput.value = '';
+        });
+        if (clearAllTasksBtn) clearAllTasksBtn.addEventListener('click', clearAllTasks);
+        quantumInput.addEventListener('change', () => { quantumMs = Math.max(5, Number(quantumInput.value)) * 60 * 1000; save(); });
+        startBtn.addEventListener('click', start);
+        pauseBtn.addEventListener('click', pause);
+        nextBtn.addEventListener('click', next);
+        resetBtn.addEventListener('click', reset);
+        generatePlanBtn.addEventListener('click', generatePlan);
+        clearPlanBtn.addEventListener('click', () => { planChips.innerHTML = ''; });
+
+        // Init
+        applyThemeFromStorage();
+        load();
+        if (!quantumMs) quantumMs = 25*60*1000;
+        render();
+    </script>
+</body>
+</html>
+
+

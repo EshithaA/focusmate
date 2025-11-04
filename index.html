@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FocusMate - Welcome</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
@@ -13,18 +14,22 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Space Grotesk', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* Deep space gradient with starfield dots */
+            background: radial-gradient(circle at 20% 20%, #0b0f2a 0%, rgba(11,15,42,0.9) 25%, rgba(6,8,24,0.95) 60%, #040615 100%),
+                        radial-gradient(circle at 80% 10%, rgba(79,70,229,0.15), rgba(0,0,0,0) 40%),
+                        radial-gradient(circle at 10% 90%, rgba(16,185,129,0.12), rgba(0,0,0,0) 40%),
+                        radial-gradient(circle at 85% 80%, rgba(59,130,246,0.12), rgba(0,0,0,0) 40%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            color: white;
+            color: #e6e9ef;
             padding: 20px;
         }
 
         .welcome-container {
-            background: rgba(255, 255, 255, 0.1);
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
             backdrop-filter: blur(10px);
             border-radius: 20px;
             padding: 40px;
@@ -70,6 +75,16 @@
             gap: 20px;
             margin: 30px 0;
         }
+
+        /* To-do styles for index page */
+        .index-todos { margin-top: 20px; text-align: left; }
+        .index-todos h3 { font-size: 1.1rem; margin-bottom: 8px; display:flex;align-items:center;gap:8px }
+        .index-todo-input { display:flex; gap:8px; margin-bottom:12px; }
+        .index-todo-input input { flex:1; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.03); color:inherit }
+        .index-todo-input button { padding:10px 12px; border-radius:8px; border:none; background:#4ec27a; color:#012; cursor:pointer }
+        .index-todo-list { list-style:none; padding:0; margin:0; max-height:180px; overflow:auto; }
+        .index-todo-list li { display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid rgba(255,255,255,0.04); }
+        .index-todo-list li button { background:transparent; border:none; color:rgba(255,255,255,0.6); cursor:pointer }
 
         .feature {
             background: rgba(255, 255, 255, 0.1);
@@ -158,6 +173,16 @@
                 </div>
             </div>
             
+            <div class="feature" onclick="window.location.href='task-manager.html'" style="cursor:pointer">
+                <div class="feature-icon">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="feature-title">AI Assistant</div>
+                <div class="feature-description">
+                    Describe your subjects, time, and goals. The assistant generates a smart, time-sliced study plan you can run instantly.
+                </div>
+            </div>
+
             <div class="feature">
                 <div class="feature-icon">
                     <i class="fas fa-trophy"></i>
@@ -187,15 +212,185 @@
                     Earn Focus Points and progress through levels
                 </div>
             </div>
+
+            <div class="feature" onclick="window.location.href='task-manager.html'" style="cursor:pointer">
+                <div class="feature-icon">
+                    <i class="fas fa-list-check"></i>
+                </div>
+                <div class="feature-title">Task Manager</div>
+                <div class="feature-description">
+                    Meet your built‑in AI assistant: describe subjects, hours, and goals. It generates a study plan and creates tasks. A round‑robin scheduler with a live clock rotates through them in fair time slices until each is complete.
+                </div>
+            </div>
         </div>
 
         <button class="start-btn" onclick="window.location.href='login.html'">
             <i class="fas fa-rocket"></i> Get Started
         </button>
+        <div style="margin-top:16px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;">
+            <button id="themeToggleBtn" class="preset-btn" style="background:rgba(0,0,0,0.3);">Toggle Theme</button>
+            <button id="openChatBtn" class="preset-btn" style="background:rgba(0,0,0,0.3);">Chat</button>
+            <button class="preset-btn" style="background:#2ecc71;color:#012;border:none;padding:10px 12px;border-radius:8px;cursor:pointer" onclick="window.location.href='task-manager.html'">
+                Open Task Manager
+            </button>
+        </div>
+
+        <!-- Index To-do Panel -->
+        <div class="index-todos">
+            <h3><i class="fas fa-list"></i> Quick To‑Do</h3>
+            <div class="index-todo-input">
+                <input id="newTodoIndexInput" type="text" placeholder="Add a quick task...">
+                <button id="addTodoIndexBtn">Add</button>
+            </div>
+            <ul id="todoListIndex" class="index-todo-list" aria-live="polite"></ul>
+        </div>
 
         <div class="footer">
             <p>Stay focused, stay productive! 🎓</p>
         </div>
     </div>
+
+    <!-- Notification container -->
+    <div id="globalNotifications" style="position:fixed;top:20px;right:20px;z-index:1200"></div>
+
+    <!-- Simple Chat Drawer -->
+    <div id="chatDrawer" style="position:fixed;right:20px;bottom:20px;width:320px;height:420px;background:rgba(0,0,0,0.85);color:white;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);display:none;flex-direction:column;overflow:hidden;z-index:1201;">
+        <div style="padding:10px;background:rgba(255,255,255,0.03);display:flex;justify-content:space-between;align-items:center;">
+            <strong>FocusMate Chat</strong>
+            <button id="closeChatBtn" style="background:transparent;border:none;color:white;font-size:18px;cursor:pointer">✕</button>
+        </div>
+        <div id="chatMessages" style="flex:1;overflow:auto;padding:10px;"> </div>
+        <div style="padding:10px;display:flex;gap:8px;background:rgba(255,255,255,0.02);">
+            <input id="chatInput" type="text" placeholder="Say hi..." style="flex:1;padding:8px;border-radius:8px;border:none;">
+            <button id="sendChatBtn" style="padding:8px 12px;border-radius:8px;border:none;background:#2ecc71;color:#012;cursor:pointer">Send</button>
+        </div>
+    </div>
+
+    <script>
+        // Theme toggle - persist to 'focusmateTheme'
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        const openChatBtn = document.getElementById('openChatBtn');
+        const chatDrawer = document.getElementById('chatDrawer');
+        const closeChatBtn = document.getElementById('closeChatBtn');
+        const sendChatBtn = document.getElementById('sendChatBtn');
+        const chatInput = document.getElementById('chatInput');
+        const chatMessages = document.getElementById('chatMessages');
+        const notifications = document.getElementById('globalNotifications');
+
+        function applyTheme(name) {
+            if (name === 'futuristic') {
+                document.body.style.background = 'radial-gradient(circle at 10% 20%, #0f0c29 0%, #302b63 40%, #24243e 100%)';
+                document.body.style.color = 'white';
+            } else {
+                document.body.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                document.body.style.color = 'white';
+            }
+        }
+
+        const saved = localStorage.getItem('focusmateTheme');
+        if (saved) applyTheme(saved);
+
+        themeToggleBtn.addEventListener('click', () => {
+            const current = localStorage.getItem('focusmateTheme') || 'default';
+            const next = current === 'futuristic' ? 'default' : 'futuristic';
+            localStorage.setItem('focusmateTheme', next);
+            applyTheme(next);
+            showNotification('Theme set to ' + next);
+        });
+
+        // Simple notification helper
+        function showNotification(msg) {
+            const el = document.createElement('div');
+            el.textContent = msg;
+            el.style.background = 'rgba(0,0,0,0.7)';
+            el.style.color = 'white';
+            el.style.padding = '8px 12px';
+            el.style.borderRadius = '8px';
+            el.style.marginTop = '8px';
+            notifications.appendChild(el);
+            setTimeout(() => el.remove(), 3500);
+        }
+
+        // Chat behavior (local only)
+        function addChatMessage(text, me = false) {
+            const p = document.createElement('div');
+            p.style.marginBottom = '8px';
+            p.style.display = 'flex';
+            p.style.justifyContent = me ? 'flex-end' : 'flex-start';
+            const b = document.createElement('div');
+            b.style.maxWidth = '78%';
+            b.style.padding = '8px 12px';
+            b.style.borderRadius = '12px';
+            b.style.background = me ? '#2ecc71' : 'rgba(255,255,255,0.06)';
+            b.style.color = me ? '#012' : 'white';
+            b.textContent = text;
+            p.appendChild(b);
+            chatMessages.appendChild(p);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        openChatBtn.addEventListener('click', () => { chatDrawer.style.display = 'flex'; });
+        closeChatBtn.addEventListener('click', () => { chatDrawer.style.display = 'none'; });
+        sendChatBtn.addEventListener('click', () => {
+            const text = chatInput.value.trim();
+            if (!text) return;
+            addChatMessage(text, true);
+            chatInput.value = '';
+            // simulate reply
+            setTimeout(() => { addChatMessage('Nice! Keep going 💪'); showNotification('New chat reply'); }, 600);
+        });
+
+        // Index page to-do logic (stored under 'todosIndex')
+        const todoIndexKey = 'todosIndex';
+        const newTodoIndexInput = document.getElementById('newTodoIndexInput');
+        const addTodoIndexBtn = document.getElementById('addTodoIndexBtn');
+        const todoListIndex = document.getElementById('todoListIndex');
+
+        function loadTodosIndex() {
+            try { return JSON.parse(localStorage.getItem(todoIndexKey) || '[]'); } catch(e) { return []; }
+        }
+
+        function saveTodosIndex(todos) { localStorage.setItem(todoIndexKey, JSON.stringify(todos)); }
+
+        function renderTodosIndex() {
+            const todos = loadTodosIndex();
+            todoListIndex.innerHTML = '';
+            todos.forEach(t => {
+                const li = document.createElement('li');
+                const left = document.createElement('div');
+                left.style.display = 'flex'; left.style.alignItems = 'center'; left.style.gap = '10px';
+                const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!t.done; cb.addEventListener('change', () => toggleTodoIndex(t.id));
+                const span = document.createElement('span'); span.textContent = t.text; if(t.done) span.style.textDecoration = 'line-through';
+                left.appendChild(cb); left.appendChild(span);
+                const del = document.createElement('button'); del.textContent = '✕'; del.addEventListener('click', () => deleteTodoIndex(t.id));
+                li.appendChild(left); li.appendChild(del);
+                todoListIndex.appendChild(li);
+            });
+        }
+
+        function addTodoIndex() {
+            const text = (newTodoIndexInput && newTodoIndexInput.value || '').trim();
+            if (!text) return;
+            const todos = loadTodosIndex();
+            todos.unshift({ id: Date.now(), text, done: false });
+            saveTodosIndex(todos);
+            renderTodosIndex();
+            if (newTodoIndexInput) newTodoIndexInput.value = '';
+            showNotification('Task added');
+        }
+
+        function toggleTodoIndex(id) {
+            const todos = loadTodosIndex();
+            const item = todos.find(x => x.id === id); if (!item) return; item.done = !item.done; saveTodosIndex(todos); renderTodosIndex(); if (item.done) showNotification('Task completed +5 XP');
+        }
+
+        function deleteTodoIndex(id) { let todos = loadTodosIndex(); todos = todos.filter(x => x.id !== id); saveTodosIndex(todos); renderTodosIndex(); showNotification('Task removed'); }
+
+        if (addTodoIndexBtn) addTodoIndexBtn.addEventListener('click', addTodoIndex);
+        if (newTodoIndexInput) newTodoIndexInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addTodoIndex(); }});
+
+        // Initial render
+        try { renderTodosIndex(); } catch (e) { /* ignore */ }
+    </script>
 </body>
 </html>

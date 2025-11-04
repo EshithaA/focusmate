@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FocusMate - Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
@@ -13,10 +14,13 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Space Grotesk', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at 20% 20%, #0b0f2a 0%, rgba(11,15,42,0.9) 25%, rgba(6,8,24,0.95) 60%, #040615 100%),
+                        radial-gradient(circle at 80% 10%, rgba(79,70,229,0.15), rgba(0,0,0,0) 40%),
+                        radial-gradient(circle at 10% 90%, rgba(16,185,129,0.12), rgba(0,0,0,0) 40%),
+                        radial-gradient(circle at 85% 80%, rgba(59,130,246,0.12), rgba(0,0,0,0) 40%);
             min-height: 100vh;
-            color: white;
+            color: #e6e9ef;
             padding: 20px;
         }
 
@@ -25,11 +29,11 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 30px;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+            backdrop-filter: blur(6px);
             border-radius: 15px;
             padding: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         .header h1 {
@@ -211,6 +215,16 @@
     </div>
 
     <div class="dashboard-grid">
+        <div class="dashboard-card" id="aiAssistantCard">
+            <div class="card-icon">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="card-title">AI Assistant</div>
+            <div class="card-description">
+                Get a smart daily study plan. Enter subjects and time, then run it.
+            </div>
+        </div>
+
         <div class="dashboard-card" id="pomodoroCard">
             <div class="card-icon">
                 <i class="fas fa-clock"></i>
@@ -241,6 +255,16 @@
             </div>
             <div class="theme-preview" id="currentThemePreview"></div>
         </div>
+
+        <div class="dashboard-card" id="taskManagerCard">
+            <div class="card-icon">
+                <i class="fas fa-list-check"></i>
+            </div>
+            <div class="card-title">Task Manager</div>
+            <div class="card-description">
+                Plan your study with AI and run a round‑robin schedule with a live clock.
+            </div>
+        </div>
     </div>
 
     <div class="stats-section">
@@ -270,138 +294,165 @@
     <div class="notification" id="notification"></div>
 
     <script type="module">
-        import { auth, getUserData, logout, onAuthStateChange } from './firebase-config-demo.js';
-
-        // DOM Elements
-        const userRank = document.getElementById('userRank');
-        const logoutBtn = document.getElementById('logoutBtn');
-        const pomodoroCard = document.getElementById('pomodoroCard');
-        const leaderboardCard = document.getElementById('leaderboardCard');
-        const themesCard = document.getElementById('themesCard');
-        const totalXP = document.getElementById('totalXP');
-        const studySessions = document.getElementById('studySessions');
-        const totalStudyTime = document.getElementById('totalStudyTime');
-        const currentStreak = document.getElementById('currentStreak');
-        const currentThemePreview = document.getElementById('currentThemePreview');
-        const notification = document.getElementById('notification');
-
-        let currentUser = null;
-        let userData = null;
-
-        // Initialize dashboard
-        onAuthStateChange(async (user) => {
-            if (user) {
-                currentUser = user;
-                await loadUserData();
-            } else {
-                window.location.href = 'login.html';
+        (async () => {
+            // Try to load real firebase config; fallback to demo config for local testing
+            let authModule = null;
+            try {
+                authModule = await import('./firebase-config.js');
+            } catch (err) {
+                console.warn('Could not load firebase-config.js, falling back to demo config:', err);
+                try {
+                    authModule = await import('./firebase-config-demo.js');
+                } catch (err2) {
+                    console.error('Could not load firebase-config-demo.js either:', err2);
+                    const notificationEl = document.getElementById('notification');
+                    if (notificationEl) {
+                        notificationEl.textContent = 'Authentication module unavailable.';
+                        notificationEl.classList.add('show', 'error');
+                    }
+                    return;
+                }
             }
-        });
 
-        // Load user data
-        async function loadUserData() {
-            if (!currentUser) return;
+            const { getUserData, logout, onAuthStateChange } = authModule;
 
-            const result = await getUserData(currentUser.uid);
-            if (result.success) {
-                userData = result.data;
-                updateDashboard();
-            } else {
-                showNotification('Error loading user data', 'error');
+            // DOM Elements (guard in case markup changes)
+            const userRank = document.getElementById('userRank');
+            const logoutBtn = document.getElementById('logoutBtn');
+            const pomodoroCard = document.getElementById('pomodoroCard');
+            const leaderboardCard = document.getElementById('leaderboardCard');
+            const themesCard = document.getElementById('themesCard');
+            const taskManagerCard = document.getElementById('taskManagerCard');
+            const aiAssistantCard = document.getElementById('aiAssistantCard');
+            const totalXP = document.getElementById('totalXP');
+            const studySessions = document.getElementById('studySessions');
+            const totalStudyTime = document.getElementById('totalStudyTime');
+            const currentStreak = document.getElementById('currentStreak');
+            const currentThemePreview = document.getElementById('currentThemePreview');
+            const notification = document.getElementById('notification');
+
+            let currentUser = null;
+            let userData = null;
+
+            // Initialize dashboard
+            try {
+                onAuthStateChange(async (user) => {
+                    if (user) {
+                        currentUser = user;
+                        await loadUserData();
+                    } else {
+                        window.location.href = 'login.html';
+                    }
+                });
+            } catch (err) {
+                console.warn('onAuthStateChange not available or threw error:', err);
             }
-        }
 
-        // Update dashboard with user data
-        function updateDashboard() {
-            if (!userData) return;
+            // Load user data
+            async function loadUserData() {
+                if (!currentUser) return;
 
-            userRank.textContent = `${userData.rank} (Level ${userData.level})`;
-            totalXP.textContent = userData.xp || 0;
-            studySessions.textContent = userData.studySessions || 0;
-            totalStudyTime.textContent = userData.totalStudyTime || 0;
-            currentStreak.textContent = userData.currentStreak || 0;
+                const result = await getUserData(currentUser.uid);
+                if (result && result.success) {
+                    userData = result.data;
+                    updateDashboard();
+                } else {
+                    showNotification('Error loading user data', 'error');
+                }
+            }
+
+            // Update dashboard with user data
+            function updateDashboard() {
+                if (!userData) return;
+
+                if (userRank) userRank.textContent = `${userData.rank} (Level ${userData.level})`;
+                if (totalXP) totalXP.textContent = userData.xp || 0;
+                if (studySessions) studySessions.textContent = userData.studySessions || 0;
+                if (totalStudyTime) totalStudyTime.textContent = userData.totalStudyTime || 0;
+                if (currentStreak) currentStreak.textContent = userData.currentStreak || 0;
+
+                // Update theme preview
+                updateThemePreview(userData.currentTheme || 'default');
+            }
 
             // Update theme preview
-            updateThemePreview(userData.currentTheme || 'default');
-        }
+            function updateThemePreview(themeName) {
+                const themes = {
+                    'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    'ocean': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    'forest': 'linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%)',
+                    'sunset': 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+                    'night': 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)',
+                    'aurora': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                };
 
-        // Update theme preview
-        function updateThemePreview(themeName) {
-            const themes = {
-                'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                'ocean': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                'forest': 'linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%)',
-                'sunset': 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
-                'night': 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)',
-                'aurora': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-            };
-            
-            currentThemePreview.style.background = themes[themeName] || themes['default'];
-        }
-
-        // Navigation
-        pomodoroCard.addEventListener('click', () => {
-            window.location.href = 'pomodoro.html';
-        });
-
-        leaderboardCard.addEventListener('click', () => {
-            window.location.href = 'leaderboard.html';
-        });
-
-        themesCard.addEventListener('click', () => {
-            window.location.href = 'themes.html';
-        });
-
-        // Logout
-        logoutBtn.addEventListener('click', async () => {
-            const result = await logout();
-            if (result.success) {
-                window.location.href = 'login.html';
-            } else {
-                showNotification('Error logging out', 'error');
+                if (currentThemePreview) currentThemePreview.style.background = themes[themeName] || themes['default'];
             }
-        });
 
-        // Notification system
-        function showNotification(message, type = 'success') {
-            notification.textContent = message;
-            notification.className = `notification ${type}`;
-            notification.classList.add('show');
-            
-            setTimeout(() => {
-                notification.classList.remove('show');
-            }, 3000);
-        }
+            // Navigation
+            if (pomodoroCard) pomodoroCard.addEventListener('click', () => { window.location.href = 'pomodoro.html'; });
+            if (leaderboardCard) leaderboardCard.addEventListener('click', () => { window.location.href = 'leaderboard.html'; });
+            if (themesCard) themesCard.addEventListener('click', () => { window.location.href = 'themes.html'; });
+            if (taskManagerCard) taskManagerCard.addEventListener('click', () => { window.location.href = 'task-manager.html'; });
+            if (aiAssistantCard) aiAssistantCard.addEventListener('click', () => { window.location.href = 'task-manager.html'; });
 
-        // Check for level up notifications
-        function checkForLevelUp() {
-            if (userData && userData.level > 1) {
-                showNotification(`🎉 Congratulations! You're now a ${userData.rank}!`, 'success');
+            // Logout
+            if (logoutBtn) logoutBtn.addEventListener('click', async () => {
+                try {
+                    const result = await logout();
+                    if (result && result.success) {
+                        window.location.href = 'login.html';
+                    } else {
+                        showNotification('Error logging out', 'error');
+                    }
+                } catch (err) {
+                    showNotification('Error logging out', 'error');
+                    console.error(err);
+                }
+            });
+
+            // Notification system
+            function showNotification(message, type = 'success') {
+                if (!notification) return;
+                notification.textContent = message;
+                notification.className = `notification ${type}`;
+                notification.classList.add('show');
+
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 3000);
             }
-        }
 
-        // Load theme from localStorage if available
-        function loadTheme() {
-            const savedTheme = localStorage.getItem('currentTheme');
-            if (savedTheme) {
-                document.body.style.background = getThemeBackground(savedTheme);
+            // Check for level up notifications
+            function checkForLevelUp() {
+                if (userData && userData.level > 1) {
+                    showNotification(`🎉 Congratulations! You're now a ${userData.rank}!`, 'success');
+                }
             }
-        }
 
-        function getThemeBackground(themeName) {
-            const themes = {
-                'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                'ocean': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                'forest': 'linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%)',
-                'sunset': 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
-                'night': 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)',
-                'aurora': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-            };
-            return themes[themeName] || themes['default'];
-        }
+            // Load theme from localStorage if available (prefer 'focusmateTheme' used elsewhere)
+            function loadTheme() {
+                const savedTheme = localStorage.getItem('focusmateTheme') || localStorage.getItem('currentTheme');
+                if (savedTheme) {
+                    document.body.style.background = getThemeBackground(savedTheme);
+                }
+            }
 
-        // Initialize theme
-        loadTheme();
+            function getThemeBackground(themeName) {
+                const themes = {
+                    'default': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    'ocean': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    'forest': 'linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%)',
+                    'sunset': 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+                    'night': 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)',
+                    'aurora': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                };
+                return themes[themeName] || themes['default'];
+            }
+
+            // Initialize theme
+            loadTheme();
+        })();
     </script>
 </body>
 </html>

@@ -1,418 +1,210 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FocusMate - Pomodoro Timer</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        /* Global Reset and Base Styling */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    <script type="module">
+        // Dynamically load firebase (real or demo) and then initialize the Pomodoro timer with extra features (to-dos, idle detection)
+        (async () => {
+            let api = null;
+            try {
+                api = await import('./firebase-config.js');
+            } catch (err) {
+                try {
+                    api = await import('./firebase-config-demo.js');
+                } catch (err2) {
+                    console.warn('No firebase module available, continuing with demo fallbacks');
+                    api = null;
+                }
+            }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            padding: 20px;
-        }
+            // Provide demo API if missing
+            const demoApi = api || (await import('./firebase-config-demo.js')).catch(() => null) || {
+                onAuthStateChange: (cb) => cb(null),
+                getUserData: async () => ({ success: false }),
+                updateUserData: async () => ({ success: false }),
+                addXP: async () => ({ success: false })
+            };
 
-        /* Container (Glassmorphism Effect) */
-        .container {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 40px;
-            text-align: center;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            max-width: 500px;
-            width: 100%;
-            position: relative;
-            overflow: hidden;
-        }
+            class PomodoroTimer {
+                constructor(api) {
+                    this.api = api;
+                    this.isRunning = false;
+                    this.isPaused = false;
+                    this.isStudyMode = true;
+                    this.timeLeft = 0;
+                    this.totalTime = 0;
+                    this.interval = null;
+                    this.studyCount = 0;
+                    this.breakCount = 0;
+                    this.totalTimeSpent = 0;
+                    this.currentUser = null;
+                    this.userData = null;
+                    this.todos = [];
 
-        .container::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%);
-            z-index: -1;
-        }
+                    // Idle detection
+                    this.lastActivity = Date.now();
+                    this.idleThresholdMinutes = parseInt(localStorage.getItem('pomodoroIdleThreshold')) || 5;
 
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 30px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
+                    // DOM
+                    this.timerDisplay = document.getElementById('timerDisplay');
+                    this.modeDisplay = document.getElementById('modeDisplay');
+                    this.progressFill = document.getElementById('progressFill');
+                    this.startBtn = document.getElementById('startBtn');
+                    this.pauseBtn = document.getElementById('pauseBtn');
+                    this.resetBtn = document.getElementById('resetBtn');
+                    this.studyInput = document.getElementById('studyMinutes');
+                    this.breakInput = document.getElementById('breakMinutes');
 
-        .user-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            background: rgba(255, 255, 255, 0.1);
-            padding: 15px;
-            border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
+                    this.breakNotification = document.getElementById('breakNotification');
+                    this.breakCapNotification = document.getElementById('breakCapNotification');
+                    this.cappedBreakTimeDisplay = document.getElementById('cappedBreakTime');
+                    this.xpNotification = document.getElementById('xpNotification');
+                    this.xpAmount = document.getElementById('xpAmount');
+                    this.xpReason = document.getElementById('xpReason');
 
-        .user-level {
-            background: rgba(255, 255, 255, 0.2);
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 0.9rem;
-        }
+                    this.studyCountElement = document.getElementById('studyCount');
+                    this.breakCountElement = document.getElementById('breakCount');
+                    this.totalTimeElement = document.getElementById('totalTime');
+                    this.productivityElement = document.getElementById('productivity');
 
-        .back-btn {
-            background: #3498db;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 0.9rem;
-        }
+                    this.userRank = document.getElementById('userRank');
+                    this.backBtn = document.getElementById('backBtn');
 
-        .back-btn:hover {
-            background: #2980b9;
-            transform: translateY(-2px);
-        }
+                    // To-do
+                    this.newTodoInput = document.getElementById('newTodoInput');
+                    this.addTodoBtn = document.getElementById('addTodoBtn');
+                    this.todoListEl = document.getElementById('todoList');
 
-        /* Timer Display */
-        .timer-display {
-            font-size: 4rem;
-            font-weight: bold;
-            margin: 30px 0;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-            min-height: 80px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            letter-spacing: 2px;
-        }
+                    // Study notification
+                    this.studyNotification = document.getElementById('studyNotification');
+                    this.imBackBtn = document.getElementById('imBackBtn');
+                    this.snoozeBtn = document.getElementById('snoozeBtn');
 
-        /* Mode Display */
-        .mode-display {
-            font-size: 1.5rem;
-            margin-bottom: 20px;
-            padding: 10px 20px;
-            border-radius: 25px;
-            display: inline-block;
-            transition: all 0.3s ease;
-            font-weight: 600;
-        }
+                    this.setupEventListeners();
+                    this.setupActivityListeners();
+                    this.updateSettings(true);
+                    this.toggleSettings(true);
+                    this.updateStats();
 
-        .study-mode {
-            background: rgba(46, 204, 113, 0.3);
-            border: 2px solid #2ecc71;
-        }
+                    this.loadTodos();
+                    this.renderTodos();
+                }
 
-        .break-mode {
-            background: rgba(231, 76, 60, 0.3);
-            border: 2px solid #e74c3c;
-        }
+                async initializeAuth() {
+                    try {
+                        const onAuth = (this.api && this.api.onAuthStateChange) ? this.api.onAuthStateChange : (cb) => cb(null);
+                        onAuth(async (user) => {
+                            if (user) {
+                                this.currentUser = user;
+                                await this.loadUserData();
+                            } else {
+                                window.location.href = 'login.html';
+                            }
+                        });
+                    } catch (e) {
+                        console.warn('Auth init failed', e);
+                    }
+                }
 
-        /* Controls and Buttons */
-        .controls {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            margin: 30px 0;
-            flex-wrap: wrap;
-        }
+                async loadUserData() {
+                    if (!this.currentUser) return;
+                    const getter = (this.api && this.api.getUserData) ? this.api.getUserData : async () => ({ success: false });
+                    const result = await getter(this.currentUser.uid);
+                    if (result && result.success) {
+                        this.userData = result.data;
+                        if (this.userRank) this.userRank.textContent = `${this.userData.rank} (Level ${this.userData.level})`;
+                        this.studyCount = this.userData.studySessions || 0;
+                        this.breakCount = this.userData.totalBreakTime || 0;
+                        this.totalTimeSpent = this.userData.totalStudyTime || 0;
+                        this.updateStats();
+                    }
+                }
 
-        button {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 25px;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none !important;
-        }
+                setupEventListeners() {
+                    if (this.startBtn) this.startBtn.addEventListener('click', () => this.start());
+                    if (this.pauseBtn) this.pauseBtn.addEventListener('click', () => this.pause());
+                    if (this.resetBtn) this.resetBtn.addEventListener('click', () => this.reset());
 
-        .start-btn {
-            background: #2ecc71;
-            color: white;
-        }
+                    if (this.studyInput) this.studyInput.addEventListener('change', () => this.updateSettings());
+                    if (this.breakInput) this.breakInput.addEventListener('change', () => this.updateSettings());
 
-        .start-btn:hover {
-            background: #27ae60;
-            transform: translateY(-2px);
-        }
+                    document.querySelectorAll('.preset-btn').forEach(btn => btn.addEventListener('click', (e) => {
+                        const [s, b] = e.target.textContent.split('-').map(Number);
+                        this.setPreset(s, b);
+                    }));
 
-        .pause-btn {
-            background: #f39c12;
-            color: white;
-        }
+                    const closeBreakBtn = document.getElementById('closeBreakNotificationBtn');
+                    if (closeBreakBtn) closeBreakBtn.addEventListener('click', () => this.closeBreakNotification());
+                    const closeBreakCapBtn = document.getElementById('closeBreakCapBtn');
+                    if (closeBreakCapBtn) closeBreakCapBtn.addEventListener('click', () => this.closeBreakCapNotification());
+                    const closeXpBtn = document.getElementById('closeXpBtn');
+                    if (closeXpBtn) closeXpBtn.addEventListener('click', () => this.closeXpNotification());
 
-        .pause-btn:hover {
-            background: #e67e22;
-            transform: translateY(-2px);
-        }
+                    if (this.backBtn) this.backBtn.addEventListener('click', () => window.location.href = 'dashboard.html');
 
-        .reset-btn {
-            background: #e74c3c;
-            color: white;
-        }
+                    if (this.addTodoBtn) this.addTodoBtn.addEventListener('click', () => this.handleAddTodo());
+                    if (this.newTodoInput) this.newTodoInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this.handleAddTodo(); }});
 
-        .reset-btn:hover {
-            background: #c0392b;
-            transform: translateY(-2px);
-        }
+                    if (this.imBackBtn) this.imBackBtn.addEventListener('click', () => this.handleImBack());
+                    if (this.snoozeBtn) this.snoozeBtn.addEventListener('click', () => this.handleSnooze());
+                }
 
-        /* Settings Section */
-        .settings {
-            margin-top: 30px;
-            padding: 20px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
+                setupActivityListeners() {
+                    const update = () => this.lastActivity = Date.now();
+                    ['mousemove','keydown','scroll','click','touchstart'].forEach(evt => window.addEventListener(evt, update, { passive: true }));
+                    document.addEventListener('visibilitychange', update);
+                    window.addEventListener('focus', update);
+                }
 
-        .settings h3 {
-            margin-bottom: 20px;
-            font-size: 1.3rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
+                isUserInactive() { return (Date.now() - this.lastActivity) > (this.idleThresholdMinutes * 60 * 1000); }
 
-        .input-group {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
+                // To-do
+                loadTodos() { try { this.todos = JSON.parse(localStorage.getItem('todos')||'[]'); } catch(e){ this.todos = []; }}
+                saveTodos(){ localStorage.setItem('todos', JSON.stringify(this.todos)); }
+                handleAddTodo(){ const text = (this.newTodoInput && this.newTodoInput.value || '').trim(); if(!text) return; this.todos.unshift({id:Date.now(),text,done:false}); this.saveTodos(); this.renderTodos(); if(this.newTodoInput) this.newTodoInput.value=''; }
+                toggleTodo(id){ const t=this.todos.find(x=>x.id===id); if(!t) return; t.done=!t.done; this.saveTodos(); this.renderTodos(); if(t.done) this.awardXP(5,'Completed a task'); }
+                deleteTodo(id){ this.todos=this.todos.filter(x=>x.id!==id); this.saveTodos(); this.renderTodos(); }
+                renderTodos(){ if(!this.todoListEl) return; this.todoListEl.innerHTML=''; this.todos.forEach(todo=>{ const li=document.createElement('li'); li.style.padding='8px 6px'; li.style.borderBottom='1px solid rgba(255,255,255,0.05)'; li.style.display='flex'; li.style.justifyContent='space-between'; li.style.alignItems='center'; const left=document.createElement('div'); left.style.display='flex'; left.style.alignItems='center'; left.style.gap='10px'; const checkbox=document.createElement('input'); checkbox.type='checkbox'; checkbox.checked=!!todo.done; checkbox.addEventListener('change',()=>this.toggleTodo(todo.id)); const span=document.createElement('span'); span.textContent=todo.text; if(todo.done) span.style.textDecoration='line-through'; left.appendChild(checkbox); left.appendChild(span); const del=document.createElement('button'); del.textContent='✕'; del.style.background='transparent'; del.style.border='none'; del.style.color='white'; del.style.cursor='pointer'; del.addEventListener('click',()=>this.deleteTodo(todo.id)); li.appendChild(left); li.appendChild(del); this.todoListEl.appendChild(li); }); }
 
-        .input-field {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 5px;
-        }
+                // Timer logic (kept similar to original)
+                setPreset(s,b){ if(this.isRunning||this.isPaused) return; this.closeBreakCapNotification(); if(this.studyInput) this.studyInput.value=s; if(this.breakInput) this.breakInput.value=b; this.reset(); }
+                start(){ if(!this.isRunning){ this.isRunning=true; this.isPaused=false; if(this.startBtn) this.startBtn.style.display='none'; if(this.pauseBtn) this.pauseBtn.style.display='inline-block'; this.toggleSettings(false); this.interval=setInterval(()=>{ this.timeLeft--; this.updateDisplay(); if(this.timeLeft<=0) this.completeTimer(); },1000); }}
+                pause(){ if(this.isRunning){ this.isRunning=false; this.isPaused=true; clearInterval(this.interval); if(this.startBtn) this.startBtn.style.display='inline-block'; if(this.pauseBtn) this.pauseBtn.style.display='none'; }}
+                reset(){ this.isRunning=false; this.isPaused=false; clearInterval(this.interval); this.isStudyMode=true; this.updateSettings(true); if(this.startBtn) this.startBtn.style.display='inline-block'; if(this.pauseBtn) this.pauseBtn.style.display='none'; this.closeBreakNotification(); this.closeBreakCapNotification(); this.toggleSettings(true); }
 
-        .input-field label {
-            font-size: 0.9rem;
-            opacity: 0.9;
-        }
+                async completeTimer(){ clearInterval(this.interval); this.isRunning=false; this.isPaused=false; this.playNotification(); this.isStudyMode=!this.isStudyMode; if(!this.isStudyMode){ this.studyCount++; await this.updateUserStats(); await this.awardXP(25,'Completed Pomodoro Session'); this.updateSettings(true); this.showBreakNotification(); } else { this.breakCount++; await this.updateUserStats(); if(this.isUserInactive()){ this.showStudyNotification(); } else { this.updateSettings(true); this.showBreakNotification(); } } this.updateDisplay(); this.updateStats(); if(!this.isUserInactive()){ this.start(); if(this.startBtn) this.startBtn.style.display='none'; if(this.pauseBtn) this.pauseBtn.style.display='inline-block'; } }
 
-        .input-field input {
-            width: 80px;
-            padding: 8px;
-            border: none;
-            border-radius: 8px;
-            text-align: center;
-            font-size: 1rem;
-            background: rgba(255, 255, 255, 0.9);
-            color: #333;
-        }
+                async updateUserStats(){ if(!this.currentUser) return; const studyMinutes = parseInt(this.studyInput.value)||25; const breakMinutes = parseInt(this.breakInput.value)||5; const updateData = { studySessions: this.studyCount, totalStudyTime: this.studyCount * studyMinutes, totalBreakTime: this.breakCount * breakMinutes, lastActive: new Date() }; const updater = (this.api && this.api.updateUserData) ? this.api.updateUserData : async ()=>({success:false}); await updater(this.currentUser.uid, updateData); }
 
-        .preset-buttons {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
+                showBreakNotification(){ if(this.breakNotification) this.breakNotification.style.display='block'; }
+                closeBreakNotification(){ if(this.breakNotification) this.breakNotification.style.display='none'; }
+                showBreakCapNotification(){ if(this.breakCapNotification) this.breakCapNotification.style.display='block'; }
+                closeBreakCapNotification(){ if(this.breakCapNotification) this.breakCapNotification.style.display='none'; }
+                showXpNotification(xp,reason,isLevelUp=false){ if(!this.xpNotification) return; this.xpAmount.textContent=`+${xp} XP`; this.xpReason.textContent=reason; if(isLevelUp){ this.xpNotification.classList.add('level-up-notification'); this.xpNotification.querySelector('h3').innerHTML='<i class="fas fa-trophy"></i> Level Up!'; } else { this.xpNotification.classList.remove('level-up-notification'); this.xpNotification.querySelector('h3').innerHTML='<i class="fas fa-star"></i> Focus Points Earned!'; } this.xpNotification.style.display='block'; }
+                closeXpNotification(){ if(this.xpNotification) this.xpNotification.style.display='none'; }
 
-        .preset-btn {
-            padding: 8px 16px;
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 15px;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
+                async awardXP(xpAmount,reason){ if(!this.currentUser) return; const xpFn = (this.api && this.api.addXP) ? this.api.addXP : async ()=>({success:false}); const result = await xpFn(this.currentUser.uid,xpAmount,reason); if(result && result.success){ this.showXpNotification(xpAmount,reason,result.leveledUp); if(result.leveledUp) await this.loadUserData(); } }
 
-        .preset-btn:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: translateY(-1px);
-        }
+                updateSettings(force=false){ if(!force && (this.isRunning||this.isPaused)) return; let studyMinutes = parseInt(this.studyInput.value)||25; let breakMinutes = parseInt(this.breakInput.value)||5; let cap=false; const maxAllowedBreak = Math.max(1,studyMinutes-1); if(breakMinutes>=studyMinutes){ cap=true; breakMinutes=maxAllowedBreak; if(this.breakInput) this.breakInput.value=breakMinutes; } if(cap){ if(this.cappedBreakTimeDisplay) this.cappedBreakTimeDisplay.textContent=breakMinutes; this.showBreakCapNotification(); } else this.closeBreakCapNotification(); if(this.isStudyMode){ this.totalTime = studyMinutes*60; if(force||!this.isRunning) this.timeLeft = studyMinutes*60; } else { this.totalTime = breakMinutes*60; if(force||!this.isRunning) this.timeLeft = breakMinutes*60; } if(force||!this.isRunning) this.updateDisplay(); }
 
-        /* Progress Bar */
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
-            margin: 20px 0;
-            overflow: hidden;
-        }
+                updateDisplay(){ const minutes=Math.floor(this.timeLeft/60); const seconds=this.timeLeft%60; const progress = this.totalTime>0?Math.max(0,Math.min(100,100-(this.timeLeft/this.totalTime)*100)):0; if(this.timerDisplay) this.timerDisplay.textContent=`${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`; document.title = `${this.isStudyMode? 'Study':'Break'} (${this.timerDisplay?this.timerDisplay.textContent:''}) - FocusFlow`; if(this.isStudyMode){ if(this.modeDisplay){ this.modeDisplay.textContent='Study Time'; this.modeDisplay.className='mode-display study-mode'; } } else { if(this.modeDisplay){ this.modeDisplay.textContent='Break Time'; this.modeDisplay.className='mode-display break-mode'; } } if(this.progressFill) this.progressFill.style.width = `${progress}%`; }
 
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #2ecc71, #27ae60);
-            border-radius: 4px;
-            /* Smoother progress update */
-            transition: width 1s linear;
-            width: 0%;
-        }
+                updateStats(){ this.totalTimeSpent = this.studyCount + this.breakCount; const totalSessions = this.studyCount + this.breakCount; const productivity = totalSessions>0?Math.round((this.studyCount/totalSessions)*100):0; if(this.studyCountElement) this.studyCountElement.textContent=this.studyCount; if(this.breakCountElement) this.breakCountElement.textContent=this.breakCount; if(this.totalTimeElement) this.totalTimeElement.textContent=`${this.totalTimeSpent} min`; if(this.productivityElement) this.productivityElement.textContent=`${productivity}%`; }
 
-        .break-mode .progress-fill {
-            background: linear-gradient(90deg, #e74c3c, #c0392b);
-        }
+                playNotification(){ try{ const audioContext = new (window.AudioContext||window.webkitAudioContext)(); const oscillator = audioContext.createOscillator(); const gainNode = audioContext.createGain(); oscillator.connect(gainNode); gainNode.connect(audioContext.destination); oscillator.frequency.setValueAtTime(800,audioContext.currentTime); oscillator.frequency.setValueAtTime(600,audioContext.currentTime+0.1); gainNode.gain.setValueAtTime(0.3,audioContext.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01,audioContext.currentTime+0.3); oscillator.start(audioContext.currentTime); oscillator.stop(audioContext.currentTime+0.3); }catch(e){}
+                }
 
-        /* Break Notification */
-        .break-notification {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.9);
-            color: white;
-            padding: 30px;
-            border-radius: 20px;
-            text-align: center;
-            z-index: 1000;
-            display: none;
-            border: 2px solid #e74c3c;
-            max-width: 90%;
-            width: 400px;
-        }
+                showStudyNotification(){ if(this.studyNotification) this.studyNotification.style.display='block'; this.showDesktopNotification('Time to Study','Break ended — ready to continue your session?'); }
+                hideStudyNotification(){ if(this.studyNotification) this.studyNotification.style.display='none'; }
+                handleImBack(){ this.hideStudyNotification(); this.updateSettings(true); this.start(); }
+                handleSnooze(){ this.hideStudyNotification(); setTimeout(()=>{ this.showStudyNotification(); },5*60*1000); }
+                showDesktopNotification(title,body){ if(!('Notification' in window)) return; if(Notification.permission==='granted'){ new Notification(title,{body}); } else if(Notification.permission!=='denied'){ Notification.requestPermission().then(p=>{ if(p==='granted') new Notification(title,{body}); }); } }
+            }
 
-        .break-notification h3 {
-            color: #e74c3c;
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-        }
-
-        .break-notification p {
-            margin-bottom: 20px;
-            font-size: 1.1rem;
-        }
-
-        .break-notification button {
-            background: #4ecdc4;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 20px;
-            font-size: 1rem;
-            cursor: pointer;
-            margin: 10px;
-            transition: all 0.3s ease;
-        }
-
-        .break-notification button:hover {
-            background: #45b7b8;
-            transform: translateY(-2px);
-        }
-
-        /* --- Break Cap Notification Styles --- */
-        .break-cap-notification {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.9);
-            color: white;
-            padding: 30px;
-            border-radius: 20px;
-            text-align: center;
-            z-index: 1000;
-            display: none; 
-            border: 2px solid #f39c12; /* Warning color (orange) */
-            max-width: 90%;
-            width: 400px;
-        }
-
-        .break-cap-notification h3 {
-            color: #f39c12;
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-        }
-
-        .break-cap-notification p {
-            margin-bottom: 20px;
-            font-size: 1.1rem;
-        }
-
-        .break-cap-notification button {
-            background: #4ecdc4;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 20px;
-            font-size: 1rem;
-            cursor: pointer;
-            margin: 10px;
-            transition: all 0.3s ease;
-        }
-
-        .break-cap-notification button:hover {
-            background: #45b7b8;
-            transform: translateY(-2px);
-        }
-        /* XP and Level Up Notifications */
-        .xp-notification {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(46, 204, 113, 0.95);
-            color: white;
-            padding: 30px;
-            border-radius: 20px;
-            text-align: center;
-            z-index: 1000;
-            display: none;
-            border: 2px solid #2ecc71;
-            max-width: 90%;
-            width: 400px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
-
-        .xp-notification h3 {
-            color: white;
-            margin-bottom: 15px;
-            font-size: 1.5rem;
-        }
-
-        .xp-notification .xp-amount {
-            font-size: 2rem;
-            font-weight: bold;
-            margin: 10px 0;
-        }
-
-        .level-up-notification {
-            background: rgba(241, 196, 15, 0.95);
-            border: 2px solid #f1c40f;
-        }
-
-        .level-up-notification h3 {
-            color: #f39c12;
+            const timer = new PomodoroTimer(demoApi);
+            // attach api and initialize auth listener
+            timer.api = demoApi;
+            try{ await timer.initializeAuth(); }catch(e){console.warn(e)}
+            window.setPreset = (s,b)=>timer.setPreset(s,b);
+            document.addEventListener('keypress', function(e){ if(e.key==='Enter') e.preventDefault(); });
+        })();
+    </script>
         }
 
         /* Stats Section */
@@ -422,6 +214,83 @@
             background: rgba(255, 255, 255, 0.1);
             border-radius: 15px;
             border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* To-do styles */
+        .todos {
+            margin-top: 25px;
+            padding: 16px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .todos h3 { margin-bottom: 10px; display:flex; gap:8px; align-items:center; }
+
+        .todo-input { display:flex; gap:8px; margin-bottom:12px; }
+        .todo-input input { flex:1; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background:transparent; color:inherit }
+        .todo-input button { padding:10px 14px; border-radius:8px; border:none; background:#6b5ce0; color:white; cursor:pointer }
+
+        .todo-list { list-style:none; margin:0; padding:0; max-height:220px; overflow:auto; }
+        .todo-list li { display:flex; justify-content:space-between; align-items:center; padding:8px 6px; border-bottom:1px solid rgba(255,255,255,0.03); }
+        .todo-list li button { background:transparent; border:none; color:rgba(255,255,255,0.6); cursor:pointer }
+
+        /* Enhanced Pomodoro visual styles */
+        .container {
+            max-width: 900px;
+            margin: 30px auto;
+            padding: 30px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+            border-radius: 18px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            color: #e6e9ef;
+        }
+
+        h1 { font-size: 2.2rem; letter-spacing: 0.6px; margin-bottom: 6px; }
+
+        .timer-display {
+            font-size: 4rem;
+            font-weight: 700;
+            margin: 12px 0 8px;
+            text-align: center;
+            color: #fff;
+            text-shadow: 0 6px 18px rgba(107,92,224,0.18);
+        }
+
+        .controls { gap: 12px; }
+        .controls button { padding: 12px 20px; border-radius: 10px; border: none; cursor: pointer; font-weight:600; }
+        .start-btn { background: linear-gradient(90deg,#6b5ce0,#4e42c9); color: #fff; }
+        .pause-btn { background: #ffb359; color: #2b2b2b; }
+        .reset-btn { background: rgba(255,255,255,0.06); color: #fff; }
+
+    .preset-btn { background: rgba(255,255,255,0.03); color: #dfe6ff; padding:8px 12px; border-radius:8px; border:none; cursor:pointer }
+        .preset-btn:hover { transform: translateY(-2px); transition: transform .15s ease; }
+
+        .mode-display { text-align:center; padding:8px 12px; border-radius:8px; display:inline-block; margin:8px auto; }
+        .study-mode { background: rgba(107,92,224,0.12); color:#dfe6ff }
+        .break-mode { background: rgba(255,179,89,0.08); color:#ffe9d6 }
+
+        /* Notification modals */
+        .break-notification, .break-cap-notification, .xp-notification, .study-notification {
+            max-width: 420px;
+            right: 40px;
+            top: 40px;
+            position: fixed;
+            z-index: 1200;
+            padding: 16px 18px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+            display: none;
+        }
+        .break-notification { background: linear-gradient(180deg,#fff,#fff); color:#222 }
+        .xp-notification { background: linear-gradient(180deg,#fffbec,#fff7e6); color:#222 }
+
+        /* Responsive tweaks for the to-do area */
+        @media (max-width: 700px) {
+            .container { padding: 18px; margin: 16px; }
+            .timer-display { font-size: 3rem; }
+            .todo-list { max-height: 160px; }
+            .controls button { width: 100%; }
         }
 
         .stats h3 {
@@ -494,7 +363,8 @@
         }
     </style>
 </head>
-<body>
+<body style="font-family: 'Space Grotesk', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: radial-gradient(circle at 20% 20%, #0b0f2a 0%, rgba(11,15,42,0.9) 25%, rgba(6,8,24,0.95) 60%, #040615 100%), radial-gradient(circle at 80% 10%, rgba(79,70,229,0.15), rgba(0,0,0,0) 40%), radial-gradient(circle at 10% 90%, rgba(16,185,129,0.12), rgba(0,0,0,0) 40%), radial-gradient(circle at 85% 80%, rgba(59,130,246,0.12), rgba(0,0,0,0) 40%); color: #e6e9ef;">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <div class="container">
         <h1><i class="fas fa-clock"></i> FocusMate</h1>
         
@@ -555,6 +425,16 @@
             </div>
         </div>
 
+        <!-- To‑Do List -->
+        <div class="todos">
+            <h3><i class="fas fa-list"></i> To‑Do</h3>
+            <div class="todo-input">
+                <input type="text" id="newTodoInput" placeholder="Add a task..." />
+                <button id="addTodoBtn">Add</button>
+            </div>
+            <ul id="todoList" class="todo-list" aria-live="polite"></ul>
+        </div>
+
         <div class="stats">
             <h3><i class="fas fa-chart-line"></i> Session Stats</h3>
             <div class="stats-grid">
@@ -612,410 +492,6 @@
         </button>
     </div>
 
-    <script type="module">
-        import { auth, getUserData, updateUserData, addXP, onAuthStateChange } from './firebase-config-demo.js';
-
-        class PomodoroTimer {
-            constructor() {
-                this.isRunning = false;
-                this.isPaused = false;
-                this.isStudyMode = true;
-                this.timeLeft = 0;
-                this.totalTime = 0;
-                this.interval = null;
-                this.studyCount = 0;
-                this.breakCount = 0;
-                this.totalTimeSpent = 0;
-                this.currentUser = null;
-                this.userData = null;
-
-                // DOM Elements
-                this.timerDisplay = document.getElementById("timerDisplay");
-                this.modeDisplay = document.getElementById("modeDisplay");
-                this.progressFill = document.getElementById("progressFill");
-                this.startBtn = document.getElementById("startBtn");
-                this.pauseBtn = document.getElementById("pauseBtn");
-                this.resetBtn = document.getElementById("resetBtn");
-                this.studyInput = document.getElementById("studyMinutes");
-                this.breakInput = document.getElementById("breakMinutes");
-                
-                this.breakNotification = document.getElementById("breakNotification");
-                this.breakCapNotification = document.getElementById("breakCapNotification");
-                this.cappedBreakTimeDisplay = document.getElementById("cappedBreakTime");
-                this.xpNotification = document.getElementById("xpNotification");
-                this.xpAmount = document.getElementById("xpAmount");
-                this.xpReason = document.getElementById("xpReason");
-                
-                // Stats elements
-                this.studyCountElement = document.getElementById("studyCount");
-                this.breakCountElement = document.getElementById("breakCount");
-                this.totalTimeElement = document.getElementById("totalTime");
-                this.productivityElement = document.getElementById("productivity");
-
-                // User info elements
-                this.userRank = document.getElementById("userRank");
-                this.backBtn = document.getElementById("backBtn");
-
-                this.setupEventListeners();
-                this.initializeAuth();
-                // Initialize state based on input fields
-                this.updateSettings(true);
-                this.toggleSettings(true); // Ensure inputs are enabled initially
-                this.updateStats();
-            }
-
-            async initializeAuth() {
-                onAuthStateChange(async (user) => {
-                    if (user) {
-                        this.currentUser = user;
-                        await this.loadUserData();
-                    } else {
-                        window.location.href = 'login.html';
-                    }
-                });
-            }
-
-            async loadUserData() {
-                if (!this.currentUser) return;
-
-                const result = await getUserData(this.currentUser.uid);
-                if (result.success) {
-                    this.userData = result.data;
-                    this.userRank.textContent = `${this.userData.rank} (Level ${this.userData.level})`;
-                    this.studyCount = this.userData.studySessions || 0;
-                    this.breakCount = this.userData.totalBreakTime || 0;
-                    this.totalTimeSpent = this.userData.totalStudyTime || 0;
-                    this.updateStats();
-                }
-            }
-
-            setupEventListeners() {
-                this.startBtn.addEventListener("click", () => this.start());
-                this.pauseBtn.addEventListener("click", () => this.pause());
-                this.resetBtn.addEventListener("click", () => this.reset());
-
-                // Handle setting changes (will call updateSettings)
-                this.studyInput.addEventListener("change", () => {
-                    this.updateSettings();
-                });
-                this.breakInput.addEventListener("change", () => {
-                    this.updateSettings();
-                });
-
-                // Get preset buttons and assign listeners
-                const presetButtons = document.querySelectorAll(".preset-btn");
-                presetButtons.forEach(button => {
-                    button.addEventListener('click', (e) => {
-                        const [study, breakTime] = e.target.textContent.split('-').map(Number);
-                        this.setPreset(study, breakTime);
-                    });
-                });
-
-                // Handle notification close buttons
-                document.getElementById('closeBreakNotificationBtn').addEventListener('click', () => {
-                    this.closeBreakNotification();
-                });
-
-                // Handle break cap notification close button
-                document.getElementById('closeBreakCapBtn').addEventListener('click', () => {
-                    this.closeBreakCapNotification();
-                });
-
-                // Handle XP notification close button
-                document.getElementById('closeXpBtn').addEventListener('click', () => {
-                    this.closeXpNotification();
-                });
-
-                // Handle back button
-                this.backBtn.addEventListener('click', () => {
-                    window.location.href = 'dashboard.html';
-                });
-            }
-            
-            // --- NEW/UPDATED LOGIC ---
-
-            // Method to enable/disable input fields and preset buttons
-            toggleSettings(enable) {
-                this.studyInput.disabled = !enable;
-                this.breakInput.disabled = !enable;
-                
-                // Also disable preset buttons
-                document.querySelectorAll(".preset-btn").forEach(btn => {
-                    btn.disabled = !enable;
-                });
-            }
-
-            setPreset(studyMinutes, breakMinutes) {
-                if (this.isRunning || this.isPaused) return; 
-                this.closeBreakCapNotification();
-                this.studyInput.value = studyMinutes;
-                this.breakInput.value = breakMinutes;
-                this.reset();
-            }
-
-            start() {
-                if (!this.isRunning) {
-                    this.isRunning = true;
-                    this.isPaused = false;
-                    this.startBtn.style.display = "none";
-                    this.pauseBtn.style.display = "inline-block";
-                    this.toggleSettings(false); // DISABLE settings on start
-
-                    this.interval = setInterval(() => {
-                        this.timeLeft--;
-                        this.updateDisplay();
-
-                        if (this.timeLeft <= 0) {
-                            this.completeTimer();
-                        }
-                    }, 1000);
-                }
-            }
-
-            pause() {
-                if (this.isRunning) {
-                    this.isRunning = false;
-                    this.isPaused = true;
-                    clearInterval(this.interval);
-                    this.startBtn.style.display = "inline-block";
-                    this.pauseBtn.style.display = "none";
-                    // Settings remain disabled while paused
-                }
-            }
-
-            reset() {
-                this.isRunning = false;
-                this.isPaused = false;
-                clearInterval(this.interval);
-                this.isStudyMode = true; // Always reset to study mode
-                this.updateSettings(true); // Recalculate and reset timeLeft
-                this.startBtn.style.display = "inline-block";
-                this.pauseBtn.style.display = "none";
-                this.closeBreakNotification(); // Hide notification on manual reset
-                this.closeBreakCapNotification(); // Hide cap notification on manual reset
-                this.toggleSettings(true); // ENABLE settings on reset
-            }
-
-            async completeTimer() {
-                clearInterval(this.interval);
-                this.isRunning = false;
-                this.isPaused = false;
-
-                this.playNotification();
-
-                // Switch mode
-                this.isStudyMode = !this.isStudyMode;
-                
-                if (!this.isStudyMode) {
-                    // Just finished study, now start break
-                    this.studyCount++;
-                    await this.updateUserStats();
-                    await this.awardXP(25, 'Completed Pomodoro Session');
-                    this.updateSettings(true); 
-                    this.showBreakNotification();
-                } else {
-                    // Just finished break, now start study
-                    this.breakCount++;
-                    await this.updateUserStats();
-                    alert("Break time is over! Time to study! 🎓");
-                    this.updateSettings(true); 
-                }
-                
-                this.updateDisplay();
-                this.updateStats();
-
-                // Auto-start the new phase (which will disable settings again)
-                this.start();
-
-                this.startBtn.style.display = "none";
-                this.pauseBtn.style.display = "inline-block";
-            }
-
-            async updateUserStats() {
-                if (!this.currentUser) return;
-
-                const studyMinutes = parseInt(this.studyInput.value) || 25;
-                const breakMinutes = parseInt(this.breakInput.value) || 5;
-                
-                const updateData = {
-                    studySessions: this.studyCount,
-                    totalStudyTime: this.studyCount * studyMinutes,
-                    totalBreakTime: this.breakCount * breakMinutes,
-                    lastActive: new Date()
-                };
-
-                await updateUserData(this.currentUser.uid, updateData);
-            }
-
-            showBreakNotification() {
-                this.breakNotification.style.display = "block";
-            }
-            
-            closeBreakNotification() {
-                this.breakNotification.style.display = "none";
-            }
-
-            showBreakCapNotification() {
-                this.breakCapNotification.style.display = "block";
-            }
-            
-            closeBreakCapNotification() {
-                this.breakCapNotification.style.display = "none";
-            }
-
-            showXpNotification(xpAmount, reason, isLevelUp = false) {
-                this.xpAmount.textContent = `+${xpAmount} XP`;
-                this.xpReason.textContent = reason;
-                
-                if (isLevelUp) {
-                    this.xpNotification.classList.add('level-up-notification');
-                    this.xpNotification.querySelector('h3').innerHTML = '<i class="fas fa-trophy"></i> Level Up!';
-                } else {
-                    this.xpNotification.classList.remove('level-up-notification');
-                    this.xpNotification.querySelector('h3').innerHTML = '<i class="fas fa-star"></i> Focus Points Earned!';
-                }
-                
-                this.xpNotification.style.display = "block";
-            }
-            
-            closeXpNotification() {
-                this.xpNotification.style.display = "none";
-            }
-
-            async awardXP(xpAmount, reason) {
-                if (!this.currentUser) return;
-
-                const result = await addXP(this.currentUser.uid, xpAmount, reason);
-                if (result.success) {
-                    this.showXpNotification(xpAmount, reason, result.leveledUp);
-                    
-                    if (result.leveledUp) {
-                        // Update user data after level up
-                        await this.loadUserData();
-                    }
-                }
-            }
-
-            updateSettings(forceResetTime = false) {
-                // Prevent settings change mid-session, unless called by reset/completeTimer
-                if (!forceResetTime && (this.isRunning || this.isPaused)) return; 
-
-                let studyMinutes = parseInt(this.studyInput.value) || 25;
-                let breakMinutes = parseInt(this.breakInput.value) || 5;
-                let capWasEnforced = false; 
-                
-                // NEW RULE: Break time must be strictly less than Study time
-                // Max allowed break is one minute less than study time, minimum 1.
-                const maxAllowedBreak = Math.max(1, studyMinutes - 1); 
-                
-                // Check if break time is greater than or EQUAL to study time.
-                if (breakMinutes >= studyMinutes) {
-                    capWasEnforced = true;
-                    breakMinutes = maxAllowedBreak;
-                    this.breakInput.value = breakMinutes; // Update input field
-                }
-
-                if (capWasEnforced) {
-                    this.cappedBreakTimeDisplay.textContent = breakMinutes;
-                    this.showBreakCapNotification();
-                } else {
-                    // Ensure the cap notification is hidden if the input is valid
-                    this.closeBreakCapNotification();
-                }
-
-                if (this.isStudyMode) {
-                    this.totalTime = studyMinutes * 60;
-                    if (forceResetTime || !this.isRunning) {
-                        this.timeLeft = studyMinutes * 60;
-                    }
-                } else {
-                    this.totalTime = breakMinutes * 60;
-                    if (forceResetTime || !this.isRunning) {
-                        this.timeLeft = breakMinutes * 60;
-                    }
-                }
-                
-                if (forceResetTime || !this.isRunning) {
-                    this.updateDisplay();
-                }
-            }
-            // --- END NEW/UPDATED LOGIC ---
-
-            updateDisplay() {
-                const minutes = Math.floor(this.timeLeft / 60);
-                const seconds = this.timeLeft % 60;
-                const progress = 100 - (this.timeLeft / this.totalTime) * 100;
-
-                this.timerDisplay.textContent = `${minutes
-                    .toString()
-                    .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-
-                document.title = `${this.isStudyMode ? 'Study' : 'Break'} (${this.timerDisplay ? this.timerDisplay.textContent : ''}) - FocusFlow`;
-
-                if (this.isStudyMode) {
-                    this.modeDisplay.textContent = "Study Time";
-                    this.modeDisplay.className = "mode-display study-mode";
-                } else {
-                    this.modeDisplay.textContent = "Break Time";
-                    this.modeDisplay.className = "mode-display break-mode";
-                }
-
-                if (this.progressFill) this.progressFill.style.width = `${progress}%`;
-            }
-
-            updateStats() {
-                // Update total time spent (in minutes)
-                this.totalTimeSpent = this.studyCount + this.breakCount;
-                
-                // Calculate productivity (study sessions / total sessions)
-                const totalSessions = this.studyCount + this.breakCount;
-                const productivity = totalSessions > 0 ? Math.round((this.studyCount / totalSessions) * 100) : 0;
-                
-                this.studyCountElement.textContent = this.studyCount;
-                this.breakCountElement.textContent = this.breakCount;
-                if (this.totalTimeElement) this.totalTimeElement.textContent = `${this.totalTimeSpent} min`;
-                if (this.productivityElement) this.productivityElement.textContent = `${productivity}%`;
-            }
-
-            playNotification() {
-                // Creates a quick beep using Web Audio API
-                const audioContext = new (window.AudioContext ||
-                    window.webkitAudioContext)();
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-
-                oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-                oscillator.frequency.setValueAtTime(
-                    600,
-                    audioContext.currentTime + 0.1
-                );
-
-                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(
-                    0.01,
-                    audioContext.currentTime + 0.3
-                );
-
-                oscillator.start(audioContext.currentTime);
-                oscillator.stop(audioContext.currentTime + 0.3);
-            }
-        }
-
-        // --- Global Setup ---
-        const timer = new PomodoroTimer();
-
-        function setPreset(studyMinutes, breakMinutes) {
-            timer.setPreset(studyMinutes, breakMinutes);
-        }
-
-        document.addEventListener("keypress", function (e) {
-            if (e.key === "Enter") {
-                e.preventDefault();
-            }
-        });
-    </script>
+    
 </body>
 </html>

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FocusMate - Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
@@ -13,18 +14,21 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Space Grotesk', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at 20% 20%, #0b0f2a 0%, rgba(11,15,42,0.9) 25%, rgba(6,8,24,0.95) 60%, #040615 100%),
+                        radial-gradient(circle at 80% 10%, rgba(79,70,229,0.15), rgba(0,0,0,0) 40%),
+                        radial-gradient(circle at 10% 90%, rgba(16,185,129,0.12), rgba(0,0,0,0) 40%),
+                        radial-gradient(circle at 85% 80%, rgba(59,130,246,0.12), rgba(0,0,0,0) 40%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            color: white;
+            color: #e6e9ef;
             padding: 20px;
         }
 
         .auth-container {
-            background: rgba(255, 255, 255, 0.1);
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
             backdrop-filter: blur(10px);
             border-radius: 20px;
             padding: 40px;
@@ -262,121 +266,142 @@
 
     <!-- Firebase SDK -->
     <script type="module">
-        import { signUp, signIn, onAuthStateChange } from './firebase-config-demo.js';
+        (async () => {
+            // Try to load real firebase config; fallback to demo config for local testing
+            let authModule = null;
+            try {
+                authModule = await import('./firebase-config.js');
+            } catch (err) {
+                console.warn('Could not load firebase-config.js, falling back to demo config:', err);
+                try {
+                    authModule = await import('./firebase-config-demo.js');
+                } catch (err2) {
+                    console.error('Could not load firebase-config-demo.js either:', err2);
+                    const errorMessage = document.getElementById('errorMessage');
+                    if (errorMessage) {
+                        errorMessage.textContent = 'Authentication system unavailable. Please run the app via a local server or check your configuration.';
+                        errorMessage.style.display = 'block';
+                    }
+                    return;
+                }
+            }
 
-        // DOM Elements
-        const loginTab = document.getElementById('loginTab');
-        const signupTab = document.getElementById('signupTab');
-        const loginForm = document.getElementById('loginForm');
-        const signupForm = document.getElementById('signupForm');
-        const loginBtn = document.getElementById('loginBtn');
-        const signupBtn = document.getElementById('signupBtn');
-        const errorMessage = document.getElementById('errorMessage');
-        const successMessage = document.getElementById('successMessage');
-        const loading = document.getElementById('loading');
+            const { signUp, signIn, onAuthStateChange } = authModule;
 
-        // Tab switching
-        loginTab.addEventListener('click', () => {
-            loginTab.classList.add('active');
-            signupTab.classList.remove('active');
-            loginForm.classList.add('active');
-            signupForm.classList.remove('active');
-            hideMessages();
-        });
+            // DOM Elements
+            const loginTab = document.getElementById('loginTab');
+            const signupTab = document.getElementById('signupTab');
+            const loginForm = document.getElementById('loginForm');
+            const signupForm = document.getElementById('signupForm');
+            const loginBtn = document.getElementById('loginBtn');
+            const signupBtn = document.getElementById('signupBtn');
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+            const loading = document.getElementById('loading');
 
-        signupTab.addEventListener('click', () => {
-            signupTab.classList.add('active');
-            loginTab.classList.remove('active');
-            signupForm.classList.add('active');
-            loginForm.classList.remove('active');
-            hideMessages();
-        });
+            // Tab switching
+            loginTab.addEventListener('click', () => {
+                loginTab.classList.add('active');
+                signupTab.classList.remove('active');
+                loginForm.classList.add('active');
+                signupForm.classList.remove('active');
+                hideMessages();
+            });
 
-        // Form submissions
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('loginEmail').value;
-            const password = document.getElementById('loginPassword').value;
-            
-            showLoading(true);
-            hideMessages();
-            
-            const result = await signIn(email, password);
-            showLoading(false);
-            
-            if (result.success) {
-                showSuccess('Login successful! Redirecting...');
-                setTimeout(() => {
+            signupTab.addEventListener('click', () => {
+                signupTab.classList.add('active');
+                loginTab.classList.remove('active');
+                signupForm.classList.add('active');
+                loginForm.classList.remove('active');
+                hideMessages();
+            });
+
+            // Form submissions
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('loginEmail').value;
+                const password = document.getElementById('loginPassword').value;
+                
+                showLoading(true);
+                hideMessages();
+                
+                const result = await signIn(email, password);
+                showLoading(false);
+                
+                if (result.success) {
+                    showSuccess('Login successful! Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = 'dashboard.html';
+                    }, 1500);
+                } else {
+                    showError(result.error);
+                }
+            });
+
+            signupForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const username = document.getElementById('signupUsername').value;
+                const email = document.getElementById('signupEmail').value;
+                const password = document.getElementById('signupPassword').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                
+                if (password !== confirmPassword) {
+                    showError('Passwords do not match');
+                    return;
+                }
+                
+                if (password.length < 6) {
+                    showError('Password must be at least 6 characters');
+                    return;
+                }
+                
+                showLoading(true);
+                hideMessages();
+                
+                const result = await signUp(email, password, username);
+                showLoading(false);
+                
+                if (result.success) {
+                    showSuccess('Account created successfully! Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = 'dashboard.html';
+                    }, 1500);
+                } else {
+                    showError(result.error);
+                }
+            });
+
+            // Utility functions
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+                successMessage.style.display = 'none';
+            }
+
+            function showSuccess(message) {
+                successMessage.textContent = message;
+                successMessage.style.display = 'block';
+                errorMessage.style.display = 'none';
+            }
+
+            function hideMessages() {
+                errorMessage.style.display = 'none';
+                successMessage.style.display = 'none';
+            }
+
+            function showLoading(show) {
+                loading.style.display = show ? 'block' : 'none';
+                loginBtn.disabled = show;
+                signupBtn.disabled = show;
+            }
+
+            // Check if user is already logged in
+            onAuthStateChange((user) => {
+                if (user) {
                     window.location.href = 'dashboard.html';
-                }, 1500);
-            } else {
-                showError(result.error);
-            }
-        });
-
-        signupForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const username = document.getElementById('signupUsername').value;
-            const email = document.getElementById('signupEmail').value;
-            const password = document.getElementById('signupPassword').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            
-            if (password !== confirmPassword) {
-                showError('Passwords do not match');
-                return;
-            }
-            
-            if (password.length < 6) {
-                showError('Password must be at least 6 characters');
-                return;
-            }
-            
-            showLoading(true);
-            hideMessages();
-            
-            const result = await signUp(email, password, username);
-            showLoading(false);
-            
-            if (result.success) {
-                showSuccess('Account created successfully! Redirecting...');
-                setTimeout(() => {
-                    window.location.href = 'dashboard.html';
-                }, 1500);
-            } else {
-                showError(result.error);
-            }
-        });
-
-        // Utility functions
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorMessage.style.display = 'block';
-            successMessage.style.display = 'none';
-        }
-
-        function showSuccess(message) {
-            successMessage.textContent = message;
-            successMessage.style.display = 'block';
-            errorMessage.style.display = 'none';
-        }
-
-        function hideMessages() {
-            errorMessage.style.display = 'none';
-            successMessage.style.display = 'none';
-        }
-
-        function showLoading(show) {
-            loading.style.display = show ? 'block' : 'none';
-            loginBtn.disabled = show;
-            signupBtn.disabled = show;
-        }
-
-        // Check if user is already logged in
-        onAuthStateChange((user) => {
-            if (user) {
-                window.location.href = 'dashboard.html';
-            }
-        });
+                }
+            });
+        })();
     </script>
 </body>
 </html>
